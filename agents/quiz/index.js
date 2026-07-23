@@ -1,6 +1,6 @@
-import { StateGraph, START, END } from "@langchain/langgraph";
+// 1. UBAH BARIS PERTAMA: Tambahkan import "Annotation" di ujungnya
+import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
-import "dotenv/config"; // Pastikan dotenv di-import untuk membaca file .env lokal
 
 // 1. Inisialisasi Model AI Sesuai Dokumentasi Resmi EdgeOne Makers
 const model = new ChatOpenAI({
@@ -15,21 +15,28 @@ const model = new ChatOpenAI({
   temperature: 0.7,
 });
 
-const QuizState = {
-  messages: { 
-    value: (current, next) => current.concat(next), default: () => [] 
-},
-  currentQuestion: { 
-    value: (x) => x, default: () => "" },
-  correctAnswer: { value: (x) => x, default: () => "" 
-  },
-  score: {
-     value: (current, next) => current + next, default: () => 0 
-    },
-  questionCount: {
-     value: (current, next) => current + next, default: () => 0 
-    },
-};
+// 2. UBAH BAGIAN INI: Bungkus QuizState menggunakan Annotation.Root agar kompatibel dengan versi terbaru
+const QuizState = Annotation.Root({
+  messages: Annotation({ 
+    reducer: (current, next) => current.concat(next), default: () => [] 
+  }),
+  currentQuestion: Annotation({ 
+    reducer: (x) => x, default: () => "" 
+  }),
+  correctAnswer: Annotation({ 
+    reducer: (x) => x, default: () => "" 
+  }),
+  score: Annotation({
+    reducer: (current, next) => current + next, default: () => 0 
+  }),
+  questionCount: Annotation({
+    reducer: (current, next) => current + next, default: () => 0 
+  }),
+});
+
+// =========================================================================
+// SISA KODE DI BAWAH INI SAMA PERSIS SEPERTI FILE ASLI ANDA (TIDAK BERUBAH)
+// =========================================================================
 
 const generateQuestionNode = async (state) => {
   const prompt = `Buatlah 1 pertanyaan kuis pilihan ganda (A, B, C, D) yang seru tentang programming backend, Pengetahuan umum, Matematika, Agama, Sains, dan lainnya. 
@@ -84,3 +91,30 @@ const workflow = new StateGraph(QuizState)
   .addConditionalEdges("evaluate_answer", shouldContinue);
 
 export const agent = workflow.compile();
+
+export const onRequestPost = async (context) => {
+  try {
+    const requestData = await context.request.json();
+    const currentMessages = requestData.messages || [];
+
+    // Memicu jalannya grafik LangGraph menggunakan data HTTP Request
+    const resultState = await agent.invoke({
+      messages: currentMessages,
+      currentQuestion: requestData.currentQuestion || "",
+      correctAnswer: requestData.correctAnswer || "",
+      score: requestData.score || 0,
+      questionCount: requestData.questionCount || 0
+    });
+
+    // Mengembalikan status data kuis terupdate ke Frontend atau Curl
+    return new Response(JSON.stringify(resultState), {
+      headers: { "Content-Type": "application/json" }
+    });
+
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+};
