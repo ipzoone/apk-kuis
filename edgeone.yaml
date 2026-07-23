@@ -1,0 +1,19 @@
+version: 1
+project:
+  name: kuis-langgraph
+  framework: vite
+
+# Mendaftarkan letak otak AI LangGraph Anda
+agents:
+  - name: quiz
+    path: ./agents/quiz/index.js
+    framework: langgraph
+
+# Mendaftarkan rute fungsi cloud pendukung kuis Anda
+cloudFunctions:
+  - name: score-history
+    path: ./cloud-functions/score/history.js
+
+edgeFunctions:
+  - name: leaderboard
+    path: ./edge-functions/quiz/leaderboard.js
